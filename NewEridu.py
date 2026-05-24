@@ -11,6 +11,8 @@ pygame.display.set_caption("Mini NukeMap")
 
 clock = pygame.time.Clock()
 
+font = pygame.font.SysFont(None, 30)
+
 # carica mappa
 original_map = pygame.image.load("map.png").convert()
 
@@ -26,55 +28,39 @@ offset_y = 0
 # lista esplosioni
 explosions = []
 
-class Explosion:
-    def __init__(self, x, y, power):
+# stato input esplosione
+input_mode = False
+input_text = ""
+pending_position = None
 
-        # coordinate mondo
+
+class Explosion:
+    def __init__(self, x, y, power_kilotons):
         self.x = x
         self.y = y
-        self.power = power
+        self.power = power_kilotons
 
-        # raggi
-        self.fireball = power * 2
-        self.shockwave = power * 5
-        self.thermal = power * 8
+        # scala: 1 pixel = 24 km
+        scale = 1 / 24
+
+        # modelli semplificati (in pixel mondo)
+        self.fireball = (power_kilotons ** 0.4) * 3 * scale
+        self.shockwave = (power_kilotons ** 0.33) * 8 * scale
+        self.thermal = (power_kilotons ** 0.5) * 12 * scale
 
     def draw(self, surface):
 
-        # converte coordinate mondo -> schermo
         sx = int(self.x * zoom + offset_x)
         sy = int(self.y * zoom + offset_y)
 
-        # raggi scalati con zoom
         fireball = int(self.fireball * zoom)
         shockwave = int(self.shockwave * zoom)
         thermal = int(self.thermal * zoom)
 
-        # termico
-        pygame.draw.circle(
-            surface,
-            (255, 120, 0),
-            (sx, sy),
-            thermal,
-            2
-        )
+        pygame.draw.circle(surface, (255, 120, 0), (sx, sy), thermal, 2)
+        pygame.draw.circle(surface, (255, 0, 0), (sx, sy), shockwave, 2)
+        pygame.draw.circle(surface, (255, 255, 0), (sx, sy), fireball)
 
-        # onda d'urto
-        pygame.draw.circle(
-            surface,
-            (255, 0, 0),
-            (sx, sy),
-            shockwave,
-            2
-        )
-
-        # fireball
-        pygame.draw.circle(
-            surface,
-            (255, 255, 0),
-            (sx, sy),
-            fireball
-        )
 
 running = True
 
@@ -87,24 +73,51 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-        # tasto C -> cancella tutte le esplosioni
+        # cancella esplosioni
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_c:
                 explosions.clear()
 
-        # click mouse -> crea esplosione
+            # input numerico
+            if input_mode:
+                if event.key == pygame.K_RETURN:
+                    try:
+                        power = float(input_text)
+
+                        if pending_position:
+                            explosions.append(
+                                Explosion(
+                                    pending_position[0],
+                                    pending_position[1],
+                                    power
+                                )
+                            )
+
+                    except:
+                        pass
+
+                    input_mode = False
+                    input_text = ""
+                    pending_position = None
+
+                elif event.key == pygame.K_BACKSPACE:
+                    input_text = input_text[:-1]
+
+                else:
+                    if event.unicode.isdigit() or event.unicode == ".":
+                        input_text += event.unicode
+
+        # mouse
         if event.type == pygame.MOUSEBUTTONDOWN:
 
-            # zoom con rotella
+            # zoom
             if event.button == 4 or event.button == 5:
 
                 mx, my = pygame.mouse.get_pos()
 
-                # posizione nel mondo PRIMA dello zoom
                 world_x = (mx - offset_x) / zoom
                 world_y = (my - offset_y) / zoom
 
-                # cambia zoom
                 if event.button == 4:
                     zoom *= 1.1
                 else:
@@ -112,42 +125,45 @@ while running:
 
                 zoom = max(min_zoom, min(max_zoom, zoom))
 
-                # mantiene il cursore fermo sul punto zoomato
                 offset_x = mx - world_x * zoom
                 offset_y = my - world_y * zoom
 
-            # click sinistro
-            elif event.button == 1:
+            # click sinistro → chiedi input
+            elif event.button == 1 and not input_mode:
 
                 mx, my = pygame.mouse.get_pos()
 
-                # coordinate schermo -> mondo
                 world_x = (mx - offset_x) / zoom
                 world_y = (my - offset_y) / zoom
 
-                # potenza bomba
-                power = 20
+                pending_position = (world_x, world_y)
+                input_mode = True
+                input_text = ""
 
-                explosions.append(
-                    Explosion(world_x, world_y, power)
-                )
-
-    # scala mappa
+    # mappa
     map_width = int(original_map.get_width() * zoom)
     map_height = int(original_map.get_height() * zoom)
 
-    scaled_map = pygame.transform.smoothscale(
-        original_map,
-        (map_width, map_height)
-    )
+    scaled_map = pygame.transform.smoothscale(original_map, (map_width, map_height))
 
-    # disegna mappa
     screen.fill((0, 0, 0))
     screen.blit(scaled_map, (offset_x, offset_y))
 
-    # disegna esplosioni
+    # esplosioni
     for exp in explosions:
         exp.draw(screen)
+
+    # overlay input
+    if input_mode:
+        pygame.draw.rect(screen, (0, 0, 0), (300, 300, 600, 100))
+        pygame.draw.rect(screen, (255, 255, 255), (300, 300, 600, 100), 2)
+
+        txt = font.render(
+            "Kilotoni: " + input_text,
+            True,
+            (255, 255, 255)
+        )
+        screen.blit(txt, (320, 340))
 
     pygame.display.flip()
 
