@@ -6,6 +6,9 @@ pygame.init()
 WIDTH = 1200
 HEIGHT = 700
 
+FOGGIA_X = 953
+FOGGIA_Y = 277
+
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Mini NukeMap")
 
@@ -263,6 +266,11 @@ while running:
                 else:
                     if event.unicode.isdigit() or event.unicode == ".":
                         input_text += event.unicode
+            if event.key == pygame.K_f:
+                power = bomb_presets[selected_preset]
+                if power is None:
+                    power = 100  # kilotoni di default
+                explosions.append(Explosion(FOGGIA_X, FOGGIA_Y, power))
 
     # -----------------------------
     # RENDER MAPPA
