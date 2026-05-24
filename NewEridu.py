@@ -12,6 +12,7 @@ pygame.display.set_caption("Mini NukeMap")
 clock = pygame.time.Clock()
 
 font = pygame.font.SysFont(None, 30)
+small_font = pygame.font.SysFont(None, 22)
 
 # carica mappa
 original_map = pygame.image.load("map.png").convert()
@@ -47,6 +48,9 @@ class Explosion:
         self.fireball = (power_kilotons ** 0.4) * 3 * scale
         self.shockwave = (power_kilotons ** 0.33) * 8 * scale
         self.thermal = (power_kilotons ** 0.5) * 12 * scale
+        
+        # NUOVO: fallout radioattivo (più grande, diffusivo)
+        self.fallout = (power_kilotons ** 0.6) * 25 * scale
 
     def draw(self, surface):
 
@@ -56,10 +60,35 @@ class Explosion:
         fireball = int(self.fireball * zoom)
         shockwave = int(self.shockwave * zoom)
         thermal = int(self.thermal * zoom)
+        fallout = int(self.fallout * zoom)
 
-        pygame.draw.circle(surface, (255, 120, 0), (sx, sy), thermal, 2)
+        # fallout (verde, più esterno)
+        pygame.draw.circle(surface, (0, 255, 0), (sx, sy), fallout, 2)
+
+        # thermal
+        pygame.draw.circle(surface, (255, 255, 0), (sx, sy), thermal, 2)
+
+        # shockwave
         pygame.draw.circle(surface, (255, 0, 0), (sx, sy), shockwave, 2)
-        pygame.draw.circle(surface, (255, 255, 0), (sx, sy), fireball)
+
+        # fireball
+        pygame.draw.circle(surface, (255, 120, 0), (sx, sy), fireball)
+
+
+def draw_legend(surface):
+    x, y = 20, HEIGHT - 140
+
+    legend_items = [
+        ("Fireball", (255, 120, 0)),
+        ("Shockwave", (255, 0, 0)),
+        ("Thermal radiation", (255, 255, 0)),
+        ("Fallout radioattivo", (0, 255, 0)),
+    ]
+
+    for i, (text, color) in enumerate(legend_items):
+        pygame.draw.rect(surface, color, (x, y + i * 25, 15, 15))
+        label = small_font.render(text, True, (255, 255, 255))
+        surface.blit(label, (x + 25, y + i * 25 - 2))
 
 
 running = True
@@ -73,12 +102,10 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-        # cancella esplosioni
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_c:
                 explosions.clear()
 
-            # input numerico
             if input_mode:
                 if event.key == pygame.K_RETURN:
                     try:
@@ -92,7 +119,6 @@ while running:
                                     power
                                 )
                             )
-
                     except:
                         pass
 
@@ -107,10 +133,8 @@ while running:
                     if event.unicode.isdigit() or event.unicode == ".":
                         input_text += event.unicode
 
-        # mouse
         if event.type == pygame.MOUSEBUTTONDOWN:
 
-            # zoom
             if event.button == 4 or event.button == 5:
 
                 mx, my = pygame.mouse.get_pos()
@@ -128,7 +152,6 @@ while running:
                 offset_x = mx - world_x * zoom
                 offset_y = my - world_y * zoom
 
-            # click sinistro → chiedi input
             elif event.button == 1 and not input_mode:
 
                 mx, my = pygame.mouse.get_pos()
@@ -140,7 +163,6 @@ while running:
                 input_mode = True
                 input_text = ""
 
-    # mappa
     map_width = int(original_map.get_width() * zoom)
     map_height = int(original_map.get_height() * zoom)
 
@@ -149,20 +171,16 @@ while running:
     screen.fill((0, 0, 0))
     screen.blit(scaled_map, (offset_x, offset_y))
 
-    # esplosioni
     for exp in explosions:
         exp.draw(screen)
 
-    # overlay input
+    draw_legend(screen)
+
     if input_mode:
         pygame.draw.rect(screen, (0, 0, 0), (300, 300, 600, 100))
         pygame.draw.rect(screen, (255, 255, 255), (300, 300, 600, 100), 2)
 
-        txt = font.render(
-            "Kilotoni: " + input_text,
-            True,
-            (255, 255, 255)
-        )
+        txt = font.render("Kilotoni: " + input_text, True, (255, 255, 255))
         screen.blit(txt, (320, 340))
 
     pygame.display.flip()
