@@ -28,6 +28,7 @@ explosions = []
 
 class Explosion:
     def __init__(self, x, y, power):
+
         # coordinate mondo
         self.x = x
         self.y = y
@@ -85,6 +86,11 @@ while running:
 
         if event.type == pygame.QUIT:
             running = False
+
+        # tasto C -> cancella tutte le esplosioni
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_c:
+                explosions.clear()
 
         # click mouse -> crea esplosione
         if event.type == pygame.MOUSEBUTTONDOWN:
