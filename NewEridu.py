@@ -23,7 +23,7 @@ original_map = pygame.image.load("map.png").convert()
 map_w = original_map.get_width()
 map_h = original_map.get_height()
 
-fit_zoom = max(WIDTH / map_w, HEIGHT / map_h)  # non lascia bordi vuoti
+fit_zoom = max(WIDTH / map_w, HEIGHT / map_h)
 
 zoom = fit_zoom
 min_zoom = fit_zoom
@@ -32,6 +32,10 @@ max_zoom = 5.0
 # offset camera
 offset_x = 0
 offset_y = 0
+
+# DRAG PAN
+dragging = False
+last_mouse = None
 
 # lista esplosioni
 explosions = []
@@ -66,7 +70,7 @@ class Explosion:
         self.y = y
         self.power = power_kilotons
 
-        scale = 1 / 24  # 1 pixel = 24 km
+        scale = 1 / 24
 
         self.fireball = (power_kilotons ** 0.4) * 3 * scale
         self.shockwave = (power_kilotons ** 0.33) * 8 * scale
@@ -84,9 +88,6 @@ class Explosion:
         pygame.draw.circle(surface, (255, 120, 0), (sx, sy), int(self.fireball * zoom))
 
 
-# -----------------------------
-# LEGGENDA ESPLOSIONE
-# -----------------------------
 def draw_legend(surface):
     x, y = 20, HEIGHT - 140
 
@@ -103,15 +104,13 @@ def draw_legend(surface):
         surface.blit(label, (x + 25, y + i * 25 - 2))
 
 
-# -----------------------------
-# LEGGENDA TASTI (NUOVA)
-# -----------------------------
 def draw_controls(surface):
     x, y = 20, 20
 
     controls = [
         "CLICK: piazza esplosione",
         "RUOTA MOUSE: zoom",
+        "TASTO DESTRO: trascina mappa",
         "TAB: cambia preset",
         "C: cancella esplosioni",
     ]
@@ -122,8 +121,6 @@ def draw_controls(surface):
 
 
 def draw_presets(surface):
-    global selected_preset
-
     start_x = WIDTH - 220
     start_y = 20
 
@@ -151,6 +148,90 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
+        # -------------------------
+        # MOUSE BUTTON DOWN
+        # -------------------------
+        if event.type == pygame.MOUSEBUTTONDOWN:
+
+            mx, my = pygame.mouse.get_pos()
+
+            # ZOOM
+            if event.button in (4, 5):
+                world_x = (mx - offset_x) / zoom
+                world_y = (my - offset_y) / zoom
+
+                if event.button == 4:
+                    zoom *= 1.1
+                else:
+                    zoom /= 1.1
+
+                zoom = max(min_zoom, min(max_zoom, zoom))
+
+                offset_x = mx - world_x * zoom
+                offset_y = my - world_y * zoom
+
+            # TASTO DESTRO -> INIZIA DRAG
+            elif event.button == 3:
+                dragging = True
+                last_mouse = (mx, my)
+
+            # CLICK SINISTRO
+            elif event.button == 1:
+
+                start_x = WIDTH - 220
+                start_y = 20
+
+                clicked_preset = None
+
+                for i, name in enumerate(preset_keys):
+                    rect = pygame.Rect(start_x, start_y + i * 28, 200, 24)
+                    if rect.collidepoint(mx, my):
+                        clicked_preset = name
+                        break
+
+                if clicked_preset:
+                    selected_preset = clicked_preset
+                    continue
+
+                world_x = (mx - offset_x) / zoom
+                world_y = (my - offset_y) / zoom
+
+                power = bomb_presets[selected_preset]
+
+                if power is None:
+                    pending_position = (world_x, world_y)
+                    input_mode = True
+                    input_text = ""
+                else:
+                    explosions.append(Explosion(world_x, world_y, power))
+
+        # -------------------------
+        # MOUSE BUTTON UP
+        # -------------------------
+        if event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 3:
+                dragging = False
+                last_mouse = None
+
+        # -------------------------
+        # MOUSE MOVE (DRAG MAPPA)
+        # -------------------------
+        if event.type == pygame.MOUSEMOTION and dragging:
+
+            mx, my = event.pos
+            lx, ly = last_mouse
+
+            dx = mx - lx
+            dy = my - ly
+
+            offset_x += dx
+            offset_y += dy
+
+            last_mouse = (mx, my)
+
+        # -------------------------
+        # KEYBOARD
+        # -------------------------
         if event.type == pygame.KEYDOWN:
 
             if event.key == pygame.K_c:
@@ -183,55 +264,9 @@ while running:
                     if event.unicode.isdigit() or event.unicode == ".":
                         input_text += event.unicode
 
-        if event.type == pygame.MOUSEBUTTONDOWN:
-
-            mx, my = pygame.mouse.get_pos()
-
-            # zoom
-            if event.button in (4, 5):
-                world_x = (mx - offset_x) / zoom
-                world_y = (my - offset_y) / zoom
-
-                if event.button == 4:
-                    zoom *= 1.1
-                else:
-                    zoom /= 1.1
-
-                zoom = max(min_zoom, min(max_zoom, zoom))
-
-                offset_x = mx - world_x * zoom
-                offset_y = my - world_y * zoom
-
-            elif event.button == 1:
-
-                start_x = WIDTH - 220
-                start_y = 20
-
-                clicked_preset = None
-
-                for i, name in enumerate(preset_keys):
-                    rect = pygame.Rect(start_x, start_y + i * 28, 200, 24)
-                    if rect.collidepoint(mx, my):
-                        clicked_preset = name
-                        break
-
-                if clicked_preset:
-                    selected_preset = clicked_preset
-                    continue
-
-                world_x = (mx - offset_x) / zoom
-                world_y = (my - offset_y) / zoom
-
-                power = bomb_presets[selected_preset]
-
-                if power is None:
-                    pending_position = (world_x, world_y)
-                    input_mode = True
-                    input_text = ""
-                else:
-                    explosions.append(Explosion(world_x, world_y, power))
-
-    # render mappa
+    # -----------------------------
+    # RENDER MAPPA
+    # -----------------------------
     map_width = int(map_w * zoom)
     map_height = int(map_h * zoom)
 
