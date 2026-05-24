@@ -17,9 +17,16 @@ small_font = pygame.font.SysFont(None, 22)
 # carica mappa
 original_map = pygame.image.load("map.png").convert()
 
-# zoom
-zoom = 1.0
-min_zoom = 0.5
+# -----------------------------
+# ZOOM (VINCOLATO ALLA FINESTRA)
+# -----------------------------
+map_w = original_map.get_width()
+map_h = original_map.get_height()
+
+fit_zoom = max(WIDTH / map_w, HEIGHT / map_h)  # non lascia bordi vuoti
+
+zoom = fit_zoom
+min_zoom = fit_zoom
 max_zoom = 5.0
 
 # offset camera
@@ -29,10 +36,28 @@ offset_y = 0
 # lista esplosioni
 explosions = []
 
-# stato input esplosione
+# input manuale
 input_mode = False
 input_text = ""
 pending_position = None
+
+# -----------------------------
+# PRESET BOMBE (KILOTONI)
+# -----------------------------
+bomb_presets = {
+    "Custom": None,
+    "Little Boy": 15,
+    "Fat Man": 21,
+    "Trinity": 20,
+    "Ivy Mike": 10400,
+    "Castle Bravo": 15000,
+    "Tsar Bomba": 50000,
+    "W88": 475,
+    "B83": 1200,
+}
+
+selected_preset = "Custom"
+preset_keys = list(bomb_presets.keys())
 
 
 class Explosion:
@@ -41,15 +66,11 @@ class Explosion:
         self.y = y
         self.power = power_kilotons
 
-        # scala: 1 pixel = 24 km
-        scale = 1 / 24
+        scale = 1 / 24  # 1 pixel = 24 km
 
-        # modelli semplificati (in pixel mondo)
         self.fireball = (power_kilotons ** 0.4) * 3 * scale
         self.shockwave = (power_kilotons ** 0.33) * 8 * scale
         self.thermal = (power_kilotons ** 0.5) * 12 * scale
-
-        # fallout radioattivo
         self.fallout = (power_kilotons ** 0.6) * 25 * scale
 
     def draw(self, surface):
@@ -57,24 +78,15 @@ class Explosion:
         sx = int(self.x * zoom + offset_x)
         sy = int(self.y * zoom + offset_y)
 
-        fireball = int(self.fireball * zoom)
-        shockwave = int(self.shockwave * zoom)
-        thermal = int(self.thermal * zoom)
-        fallout = int(self.fallout * zoom)
-
-        # fallout (verde, esterno)
-        pygame.draw.circle(surface, (0, 255, 0), (sx, sy), fallout, 2)
-
-        # radiazione termica
-        pygame.draw.circle(surface, (255, 255, 0), (sx, sy), thermal, 2)
-
-        # onda d'urto
-        pygame.draw.circle(surface, (255, 0, 0), (sx, sy), shockwave, 2)
-
-        # palla di fuoco
-        pygame.draw.circle(surface, (255, 120, 0), (sx, sy), fireball)
+        pygame.draw.circle(surface, (0, 255, 0), (sx, sy), int(self.fallout * zoom), 2)
+        pygame.draw.circle(surface, (255, 255, 0), (sx, sy), int(self.thermal * zoom), 2)
+        pygame.draw.circle(surface, (255, 0, 0), (sx, sy), int(self.shockwave * zoom), 2)
+        pygame.draw.circle(surface, (255, 120, 0), (sx, sy), int(self.fireball * zoom))
 
 
+# -----------------------------
+# LEGGENDA ESPLOSIONE
+# -----------------------------
 def draw_legend(surface):
     x, y = 20, HEIGHT - 140
 
@@ -87,8 +99,45 @@ def draw_legend(surface):
 
     for i, (text, color) in enumerate(legend_items):
         pygame.draw.rect(surface, color, (x, y + i * 25, 15, 15))
-        label = small_font.render(text, True, (0, 0, 0))  # testo nero
+        label = small_font.render(text, True, (0, 0, 0))
         surface.blit(label, (x + 25, y + i * 25 - 2))
+
+
+# -----------------------------
+# LEGGENDA TASTI (NUOVA)
+# -----------------------------
+def draw_controls(surface):
+    x, y = 20, 20
+
+    controls = [
+        "CLICK: piazza esplosione",
+        "RUOTA MOUSE: zoom",
+        "TAB: cambia preset",
+        "C: cancella esplosioni",
+    ]
+
+    for i, text in enumerate(controls):
+        label = small_font.render(text, True, (0, 0, 0))
+        surface.blit(label, (x, y + i * 20))
+
+
+def draw_presets(surface):
+    global selected_preset
+
+    start_x = WIDTH - 220
+    start_y = 20
+
+    for i, name in enumerate(preset_keys):
+        rect = pygame.Rect(start_x, start_y + i * 28, 200, 24)
+
+        is_selected = (name == selected_preset)
+        color = (80, 80, 80) if not is_selected else (200, 80, 80)
+
+        pygame.draw.rect(surface, color, rect)
+        pygame.draw.rect(surface, (255, 255, 255), rect, 1)
+
+        label = small_font.render(name, True, (255, 255, 255))
+        surface.blit(label, (start_x + 8, start_y + i * 28 + 4))
 
 
 running = True
@@ -103,8 +152,13 @@ while running:
             running = False
 
         if event.type == pygame.KEYDOWN:
+
             if event.key == pygame.K_c:
                 explosions.clear()
+
+            if event.key == pygame.K_TAB:
+                idx = preset_keys.index(selected_preset)
+                selected_preset = preset_keys[(idx + 1) % len(preset_keys)]
 
             if input_mode:
                 if event.key == pygame.K_RETURN:
@@ -113,11 +167,7 @@ while running:
 
                         if pending_position:
                             explosions.append(
-                                Explosion(
-                                    pending_position[0],
-                                    pending_position[1],
-                                    power
-                                )
+                                Explosion(pending_position[0], pending_position[1], power)
                             )
                     except:
                         pass
@@ -135,10 +185,10 @@ while running:
 
         if event.type == pygame.MOUSEBUTTONDOWN:
 
-            if event.button == 4 or event.button == 5:
+            mx, my = pygame.mouse.get_pos()
 
-                mx, my = pygame.mouse.get_pos()
-
+            # zoom
+            if event.button in (4, 5):
                 world_x = (mx - offset_x) / zoom
                 world_y = (my - offset_y) / zoom
 
@@ -152,34 +202,51 @@ while running:
                 offset_x = mx - world_x * zoom
                 offset_y = my - world_y * zoom
 
-            elif event.button == 1 and not input_mode:
+            elif event.button == 1:
 
-                mx, my = pygame.mouse.get_pos()
+                start_x = WIDTH - 220
+                start_y = 20
+
+                clicked_preset = None
+
+                for i, name in enumerate(preset_keys):
+                    rect = pygame.Rect(start_x, start_y + i * 28, 200, 24)
+                    if rect.collidepoint(mx, my):
+                        clicked_preset = name
+                        break
+
+                if clicked_preset:
+                    selected_preset = clicked_preset
+                    continue
 
                 world_x = (mx - offset_x) / zoom
                 world_y = (my - offset_y) / zoom
 
-                pending_position = (world_x, world_y)
-                input_mode = True
-                input_text = ""
+                power = bomb_presets[selected_preset]
 
-    # mappa
-    map_width = int(original_map.get_width() * zoom)
-    map_height = int(original_map.get_height() * zoom)
+                if power is None:
+                    pending_position = (world_x, world_y)
+                    input_mode = True
+                    input_text = ""
+                else:
+                    explosions.append(Explosion(world_x, world_y, power))
+
+    # render mappa
+    map_width = int(map_w * zoom)
+    map_height = int(map_h * zoom)
 
     scaled_map = pygame.transform.smoothscale(original_map, (map_width, map_height))
 
     screen.fill((0, 0, 0))
     screen.blit(scaled_map, (offset_x, offset_y))
 
-    # esplosioni
     for exp in explosions:
         exp.draw(screen)
 
-    # legenda
+    draw_controls(screen)
     draw_legend(screen)
+    draw_presets(screen)
 
-    # input overlay
     if input_mode:
         pygame.draw.rect(screen, (0, 0, 0), (300, 300, 600, 100))
         pygame.draw.rect(screen, (255, 255, 255), (300, 300, 600, 100), 2)
