@@ -48,8 +48,8 @@ class Explosion:
         self.fireball = (power_kilotons ** 0.4) * 3 * scale
         self.shockwave = (power_kilotons ** 0.33) * 8 * scale
         self.thermal = (power_kilotons ** 0.5) * 12 * scale
-        
-        # NUOVO: fallout radioattivo (più grande, diffusivo)
+
+        # fallout radioattivo
         self.fallout = (power_kilotons ** 0.6) * 25 * scale
 
     def draw(self, surface):
@@ -62,16 +62,16 @@ class Explosion:
         thermal = int(self.thermal * zoom)
         fallout = int(self.fallout * zoom)
 
-        # fallout (verde, più esterno)
+        # fallout (verde, esterno)
         pygame.draw.circle(surface, (0, 255, 0), (sx, sy), fallout, 2)
 
-        # thermal
+        # radiazione termica
         pygame.draw.circle(surface, (255, 255, 0), (sx, sy), thermal, 2)
 
-        # shockwave
+        # onda d'urto
         pygame.draw.circle(surface, (255, 0, 0), (sx, sy), shockwave, 2)
 
-        # fireball
+        # palla di fuoco
         pygame.draw.circle(surface, (255, 120, 0), (sx, sy), fireball)
 
 
@@ -79,15 +79,15 @@ def draw_legend(surface):
     x, y = 20, HEIGHT - 140
 
     legend_items = [
-        ("Fireball", (255, 120, 0)),
-        ("Shockwave", (255, 0, 0)),
-        ("Thermal radiation", (255, 255, 0)),
+        ("Palla di fuoco", (255, 120, 0)),
+        ("Onda d'urto", (255, 0, 0)),
+        ("Radiazione termica", (255, 255, 0)),
         ("Fallout radioattivo", (0, 255, 0)),
     ]
 
     for i, (text, color) in enumerate(legend_items):
         pygame.draw.rect(surface, color, (x, y + i * 25, 15, 15))
-        label = small_font.render(text, True, (255, 255, 255))
+        label = small_font.render(text, True, (0, 0, 0))  # testo nero
         surface.blit(label, (x + 25, y + i * 25 - 2))
 
 
@@ -163,6 +163,7 @@ while running:
                 input_mode = True
                 input_text = ""
 
+    # mappa
     map_width = int(original_map.get_width() * zoom)
     map_height = int(original_map.get_height() * zoom)
 
@@ -171,11 +172,14 @@ while running:
     screen.fill((0, 0, 0))
     screen.blit(scaled_map, (offset_x, offset_y))
 
+    # esplosioni
     for exp in explosions:
         exp.draw(screen)
 
+    # legenda
     draw_legend(screen)
 
+    # input overlay
     if input_mode:
         pygame.draw.rect(screen, (0, 0, 0), (300, 300, 600, 100))
         pygame.draw.rect(screen, (255, 255, 255), (300, 300, 600, 100), 2)
